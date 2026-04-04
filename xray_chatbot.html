@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MediScan AI · Chest & Spine X-Ray Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --surface: #111620;
+    --surface2: #161d2b;
+    --border: #1e2d45;
+    --accent: #3b82f6;
+    --accent2: #60a5fa;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --warn: #f59e0b;
+    --text: #e2e8f0;
+    --text-muted: #64748b;
+    --text-dim: #94a3b8;
+    --glow: rgba(59,130,246,0.15);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+  }
+
+  .sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 28px 20px 20px;
+    gap: 18px;
+    overflow-y: auto;
+  }
+
+  .sidebar::-webkit-scrollbar { width: 3px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .logo { display: flex; align-items: center; gap: 10px; }
+
+  .logo-icon {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 0 20px rgba(59,130,246,0.3);
+    flex-shrink: 0;
+  }
+
+  .logo h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #e2e8f0, #93c5fd);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .logo span {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: block;
+    margin-top: -2px;
+  }
+
+  .disclaimer {
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.25);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: #fbbf24;
+  }
+  .disclaimer strong { font-weight: 600; display: block; margin-bottom: 4px; }
+
+  /* ── NEW: Scan type tabs ── */
+  .scan-tabs {
+    display: flex;
+    gap: 5px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+  }
+
+  .scan-tab {
+    flex: 1;
+    padding: 7px 6px;
+    text-align: center;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-muted);
+    border: none;
+    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .scan-tab.active {
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(59,130,246,0.3);
+  }
+
+  .sidebar-section { display: flex; flex-direction: column; gap: 10px; }
+
+  .sidebar-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .upload-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    padding: 20px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--surface2);
+  }
+
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(59,130,246,0.05);
+  }
+
+  .upload-zone input { display: none; }
+  .upload-zone .icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-zone p { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+  .upload-zone strong { color: var(--accent2); }
+
+  .preview-container {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    aspect-ratio: 1;
+    background: #000;
+    display: none;
+  }
+
+  .preview-container img { width: 100%; height: 100%; object-fit: cover; }
+
+  .preview-overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.7);
+    opacity: 0; transition: opacity 0.2s;
+    gap: 8px;
+  }
+
+  .preview-container:hover .preview-overlay { opacity: 1; }
+
+  .preview-overlay button {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .scan-result {
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 12.5px;
+    display: none;
+  }
+
+  .scan-result.positive {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3);
+    color: #fca5a5;
+  }
+
+  .scan-result.negative {
+    background: rgba(34,197,94,0.1);
+    border: 1px solid rgba(34,197,94,0.3);
+    color: #86efac;
+  }
+
+  .result-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+  .result-top { font-family: 'DM Mono', monospace; font-size: 11px; opacity: 0.8; margin-bottom: 7px; }
+
+  .score-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    margin-top: 3px;
+    opacity: 0.85;
+  }
+  .score-row span:last-child { font-family: 'DM Mono', monospace; }
+
+  .clinical-box {
+    display: none;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.6;
+    background: rgba(139,92,246,0.1);
+    border: 1px solid rgba(139,92,246,0.35);
+    color: #c4b5fd;
+  }
+
+  .clinical-header { font-weight: 600; font-size: 12px; margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
+  .clinical-label { font-weight: 700; font-size: 13px; margin-bottom: 3px; }
+  .clinical-reason { font-size: 11px; opacity: 0.85; line-height: 1.5; }
+  .clinical-note { font-size: 10px; opacity: 0.6; margin-top: 6px; font-style: italic; }
+
+  @keyframes highlightPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(139,92,246,0.6); }
+    70%  { box-shadow: 0 0 0 8px rgba(139,92,246,0); }
+    100% { box-shadow: 0 0 0 0 rgba(139,92,246,0); }
+  }
+  .clinical-updated { animation: highlightPulse 0.8s ease-out; }
+
+  .sidebar-footer {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    text-align: center;
+    line-height: 1.6;
+    margin-top: auto;
+    padding-top: 8px;
+  }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .chat-header {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+
+  .chat-header-left h2 { font-family: 'DM Serif Display', serif; font-size: 18px; }
+  .chat-header-left p { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(34,197,94,0.1);
+    border: 1px solid rgba(34,197,94,0.25);
+    color: #86efac;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    scroll-behavior: smooth;
+  }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .message { display: flex; gap: 14px; max-width: 780px; animation: fadeUp 0.3s ease; }
+
+  @keyframes fadeUp { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);} }
+
+  .message.user { align-self: flex-end; flex-direction: row-reverse; }
+
+  .avatar { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .avatar.ai { background: linear-gradient(135deg, #1e3a5f, #1d4ed8); box-shadow: 0 0 12px rgba(59,130,246,0.2); }
+  .avatar.user-av { background: var(--surface2); border: 1px solid var(--border); }
+
+  .bubble { padding: 13px 16px; border-radius: 14px; font-size: 14px; line-height: 1.7; max-width: 600px; }
+  .message.ai .bubble { background: var(--surface); border: 1px solid var(--border); border-top-left-radius: 4px; }
+  .message.user .bubble { background: linear-gradient(135deg, #1d4ed8, #2563eb); border-top-right-radius: 4px; color: #fff; }
+
+  .bubble p { margin-bottom: 8px; }
+  .bubble p:last-child { margin-bottom: 0; }
+  .bubble strong { font-weight: 600; }
+  .bubble em { font-style: italic; color: var(--text-dim); }
+
+  .image-preview-msg { width: 180px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 8px; }
+  .image-preview-msg img { width: 100%; display: block; }
+
+  .typing { display: flex; align-items: center; gap: 5px; padding: 14px 16px; }
+  .typing span { width: 6px; height: 6px; background: var(--text-muted); border-radius: 50%; animation: bounce 1.2s infinite; }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,60%,100%{transform:translateY(0);} 30%{transform:translateY(-6px);} }
+
+  .input-area { padding: 16px 28px 20px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+  .input-row { display: flex; gap: 10px; align-items: flex-end; }
+  .input-wrapper { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; transition: border-color 0.2s; }
+  .input-wrapper:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow); }
+
+  textarea { width: 100%; background: transparent; border: none; outline: none; resize: none; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; line-height: 1.5; max-height: 120px; min-height: 22px; }
+  textarea::placeholder { color: var(--text-muted); }
+
+  .send-btn { width: 44px; height: 44px; background: linear-gradient(135deg, #1d4ed8, #3b82f6); border: none; border-radius: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; flex-shrink: 0; box-shadow: 0 4px 14px rgba(59,130,246,0.3); }
+  .send-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(59,130,246,0.4); }
+  .send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .input-hint { font-size: 11px; color: var(--text-muted); margin-top: 8px; text-align: center; }
+
+  .welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 24px; padding: 40px; text-align: center; }
+  .welcome-icon { width: 72px; height: 72px; background: linear-gradient(135deg, #1e3a5f, #1d4ed8); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 36px; box-shadow: 0 0 40px rgba(59,130,246,0.25); }
+  .welcome h2 { font-family: 'DM Serif Display', serif; font-size: 26px; }
+  .welcome p { font-size: 14px; color: var(--text-dim); max-width: 420px; line-height: 1.7; }
+
+  .suggestion-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 480px; }
+  .chip { background: var(--surface2); border: 1px solid var(--border); padding: 8px 14px; border-radius: 20px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; transition: all 0.2s; }
+  .chip:hover { border-color: var(--accent); color: var(--accent2); background: rgba(59,130,246,0.05); }
+
+  .scan-loading { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--accent2); }
+  .spinner { width: 14px; height: 14px; border: 2px solid rgba(59,130,246,0.3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">🩻</div>
+    <div>
+      <h1>MediScan AI</h1>
+      <span>Multi-Domain v2.0</span>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    <strong>⚠️ Medical Disclaimer</strong>
+    This tool provides a second opinion only and is <em>not</em> a substitute for professional medical advice. Always consult a qualified physician.
+  </div>
+
+  <!-- ── Scan type switcher (NEW) ── -->
+  <div>
+    <div class="sidebar-label" style="margin-bottom:8px;">Scan Type</div>
+    <div class="scan-tabs">
+      <button class="scan-tab active" id="tab-chest" onclick="setTab('chest')">🫁 Chest X-Ray</button>
+      <button class="scan-tab"        id="tab-spine" onclick="setTab('spine')">🦴 Spine X-Ray</button>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">X-Ray Image</div>
+
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.dcm" />
+      <div class="icon">📡</div>
+      <p id="uploadHint">Drag & drop or <strong>browse</strong><br/>JPG, PNG, DICOM supported</p>
+    </div>
+
+    <div class="preview-container" id="previewContainer">
+      <img id="previewImg" alt="X-Ray preview" />
+      <div class="preview-overlay">
+        <button onclick="clearImage()">🗑 Remove</button>
+        <button onclick="document.getElementById('fileInput').click()">↺ Replace</button>
+      </div>
+    </div>
+
+    <div class="scan-result" id="scanResult"></div>
+
+    <div class="clinical-box" id="clinicalBox">
+      <div class="clinical-header">🧠 Clinical Assessment</div>
+      <div class="clinical-label" id="clinicalLabel"></div>
+      <div class="clinical-reason" id="clinicalReason"></div>
+      <div class="clinical-note">Updated from symptom interview</div>
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    Powered by Claude AI · For informational use only<br/>
+    Chest: MobileNetV2 · 5-class · Spine: CNN · 3-class
+  </div>
+</aside>
+
+<main class="main">
+  <header class="chat-header">
+    <div class="chat-header-left">
+      <h2 id="headerTitle">Clinical X-Ray Assessment</h2>
+      <p id="headerSub">Upload a chest X-ray — I'll analyse it and ask about your symptoms</p>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot"></div>
+      AI Ready
+    </div>
+  </header>
+
+  <div class="messages" id="messages">
+    <div class="welcome" id="welcomeScreen">
+      <div class="welcome-icon">🩻</div>
+      <h2>Hello, I'm MediScan AI</h2>
+      <p>Upload a <strong>chest X-ray</strong> for 5-disease analysis, or switch to <strong>spine mode</strong> to detect scoliosis and spondylolisthesis.</p>
+      <div class="suggestion-chips">
+        <div class="chip" onclick="sendSuggestion(this)">What does TB look like on an X-ray?</div>
+        <div class="chip" onclick="sendSuggestion(this)">How does COVID differ from pneumonia on X-ray?</div>
+        <div class="chip" onclick="sendSuggestion(this)">What is scoliosis?</div>
+        <div class="chip" onclick="sendSuggestion(this)">What questions should I ask my doctor?</div>
+        <div class="chip" onclick="sendSuggestion(this)">What is spondylolisthesis?</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-row">
+      <div class="input-wrapper">
+        <textarea id="chatInput" placeholder="Describe your symptoms or ask a question..." rows="1"
+          onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      </div>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+    </div>
+    <div class="input-hint" id="inputHint">Chest: COVID · Pneumonia · TB · Lung Opacity · Normal &nbsp;|&nbsp; Spine: Scoliosis · Spondylolisthesis · Normal</div>
+  </div>
+</main>
+
+<script>
+// ── System prompts ───────────────────────────────────────────────────────────
+const CHEST_PROMPT = `You are MediScan AI, a specialized medical imaging assistant that combines chest X-ray analysis with clinical symptom assessment to provide a more informed picture of a patient's respiratory health.
+
+YOUR DIAGNOSTIC APPROACH — follow this flow every time a scan is uploaded:
+
+STEP 1 — ACKNOWLEDGE THE X-RAY RESULT
+Briefly acknowledge what the AI model detected (e.g. "The X-ray analysis shows signs consistent with COVID-19 at 74% confidence"). Keep this short — one or two sentences. Do NOT give a final diagnosis yet.
+
+STEP 2 — ASK ABOUT SYMPTOMS (ALWAYS do this before concluding)
+After acknowledging the scan, ask the patient targeted clinical questions in a single message:
+- Do you have a fever, chills, or night sweats?
+- Do you have a cough — is it dry or are you bringing up phlegm or blood?
+- Are you experiencing shortness of breath or chest pain?
+- How long have you had these symptoms?
+- Any recent travel, sick contacts, or known exposures?
+- Any relevant medical history (e.g. smoker, weakened immune system, prior lung conditions)?
+
+STEP 3 — SYNTHESISE SCAN + SYMPTOMS
+Once the patient describes their symptoms, combine the X-ray findings with what they've told you to give a refined assessment.
+
+STEP 4 — CLEAR NEXT STEPS
+Always end with concrete guidance: what tests to request, what specialist to see, when to seek emergency care.
+
+THE 5 CONDITIONS YOUR MODEL DETECTS:
+- COVID-19: bilateral ground-glass opacities. Symptoms: fever, dry cough, loss of smell/taste, fatigue.
+- Pneumonia (Viral): patchy consolidation. Symptoms: fever, productive cough, chest pain, rapid onset.
+- Tuberculosis (TB): upper lobe infiltrates/cavities. Symptoms: cough >3 weeks, coughing blood, night sweats, weight loss.
+- Lung Opacity: haziness from fluid, infection, or mass. Symptoms vary widely.
+- Normal: no significant findings — but symptoms still matter.
+
+IMPORTANT: TB is frequently misclassified. If haemoptysis + night sweats + weight loss → always raise TB.
+SCOPE: Only discuss chest X-rays and respiratory conditions.
+DISCLAIMER: Always make clear this is a screening tool, NOT a professional medical diagnosis.
+TONE: Warm, calm, clinically informed.`;
+
+const SPINE_PROMPT = `You are MediScan AI, a specialized medical imaging assistant for spine X-ray analysis.
+
+THE 3 CONDITIONS YOU DETECT:
+- Normal: proper spinal alignment, no deformity. No intervention needed.
+- Scoliosis: abnormal lateral (sideways) curvature of the spine (Cobb angle >10°). Can be S-shaped or C-shaped. Symptoms: uneven shoulders or hips, back pain, visible curve.
+- Spondylolisthesis: a vertebra slipping forward over the one below it. Symptoms: lower back pain, buttock pain, leg pain (sciatica), muscle tightness.
+
+YOUR DIAGNOSTIC APPROACH:
+STEP 1 — Explain what the model found clearly and in plain language.
+STEP 2 — Ask about symptoms: back pain location, leg pain/numbness, duration, any previous diagnosis or treatment.
+STEP 3 — Combine scan + symptoms to give a refined assessment.
+STEP 4 — Recommend next steps: GP, physiotherapist, or spine specialist (orthopaedic surgeon/neurosurgeon).
+
+SCOPE: Only discuss spine X-rays and spinal conditions.
+DISCLAIMER: Always make clear this is a screening tool, NOT a professional medical diagnosis.
+TONE: Warm, reassuring, educational. Explain medical terms simply.`;
+
+// ── State ────────────────────────────────────────────────────────────────────
+let conversationHistory = [];
+let currentImageBase64  = null;
+let currentScanResult   = null;
+let currentTab          = 'chest';
+let isLoading           = false;
+
+// ── Tab switching ────────────────────────────────────────────────────────────
+function setTab(type) {
+  currentTab = type;
+  document.getElementById('tab-chest').className = 'scan-tab' + (type === 'chest' ? ' active' : '');
+  document.getElementById('tab-spine').className  = 'scan-tab' + (type === 'spine'  ? ' active' : '');
+
+  if (type === 'chest') {
+    document.getElementById('headerTitle').textContent = 'Clinical X-Ray Assessment';
+    document.getElementById('headerSub').textContent   = 'Upload a chest X-ray — I\'ll analyse it and ask about your symptoms';
+    document.getElementById('uploadHint').innerHTML    = 'Drag & drop or <strong>browse</strong><br/>COVID · Pneumonia · TB · Opacity · Normal';
+  } else {
+    document.getElementById('headerTitle').textContent = 'Spine X-Ray Analysis';
+    document.getElementById('headerSub').textContent   = 'Upload a spine X-ray — Scoliosis & Spondylolisthesis detection';
+    document.getElementById('uploadHint').innerHTML    = 'Drag & drop or <strong>browse</strong><br/>Normal · Scoliosis · Spondylolisthesis';
+  }
+  clearImage();
+}
+
+// ── Upload ───────────────────────────────────────────────────────────────────
+const uploadZone = document.getElementById('uploadZone');
+const fileInput  = document.getElementById('fileInput');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) processFile(e.target.files[0]); });
+
+function processFile(file) {
+  if (!file.type.match(/image\/(jpeg|png)/) && !file.name.endsWith('.dcm')) {
+    alert('Please upload a JPG, PNG, or DICOM file.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const dataUrl = ev.target.result;
+    currentImageBase64 = dataUrl.split(',')[1];
+    currentScanResult  = null;
+
+    document.getElementById('previewImg').src = dataUrl;
+    document.getElementById('previewContainer').style.display = 'block';
+    uploadZone.style.display = 'none';
+    document.getElementById('clinicalBox').style.display = 'none';
+
+    runScan();
+    addImageUploadMessage(dataUrl, file.name);
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Scan ─────────────────────────────────────────────────────────────────────
+async function runScan() {
+  const el = document.getElementById('scanResult');
+  el.style.display = 'block';
+  el.className = 'scan-result';
+  el.innerHTML = `<div class="scan-loading"><div class="spinner"></div> Analysing ${currentTab} X-ray...</div>`;
+
+  const endpoint = currentTab === 'spine'
+    ? 'http://localhost:5000/spine'
+    : 'http://localhost:5000/predict';
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: currentImageBase64 })
+    });
+    if (!res.ok) throw new Error('Server error ' + res.status);
+
+    const result = await res.json();
+    if (result.error) throw new Error(result.error);
+
+    const { label, confidence, isNormal, allScores } = result;
+    currentScanResult = { label, confidence, isNormal, allScores, type: currentTab };
+
+    el.className = `scan-result ${isNormal ? 'negative' : 'positive'}`;
+
+    let scoresHtml = '';
+    if (allScores) {
+      const sorted = Object.entries(allScores).sort((a, b) => b[1] - a[1]);
+      scoresHtml = sorted.map(([cls, pct]) =>
+        `<div class="score-row"><span>${cls}</span><span>${pct}%</span></div>`
+      ).join('');
+    }
+
+    el.innerHTML = `
+      <div class="result-title">${isNormal ? '✅ No Significant Findings' : '⚠️ ' + label + ' Detected'}</div>
+      <div class="result-top">Top: ${label} — ${confidence}%</div>
+      ${scoresHtml}
+    `;
+
+  } catch (err) {
+    el.className = 'scan-result positive';
+    el.innerHTML = `
+      <div class="result-title">⚠️ Cannot connect to server</div>
+      <div class="result-top">Make sure server.py is running on port 5000</div>
+    `;
+    console.error(err);
+  }
+}
+
+function clearImage() {
+  currentImageBase64 = null;
+  currentScanResult  = null;
+  document.getElementById('previewContainer').style.display = 'none';
+  document.getElementById('scanResult').style.display       = 'none';
+  document.getElementById('clinicalBox').style.display      = 'none';
+  uploadZone.style.display = 'block';
+  fileInput.value = '';
+}
+
+// ── Chat ─────────────────────────────────────────────────────────────────────
+function addImageUploadMessage(dataUrl, fileName) {
+  hideWelcome();
+  const msg = document.createElement('div');
+  msg.className = 'message user';
+  msg.innerHTML = `
+    <div class="avatar user-av">👤</div>
+    <div class="bubble">
+      <div class="image-preview-msg"><img src="${dataUrl}" alt="Uploaded X-Ray"/></div>
+      <div>Uploaded: <strong>${fileName}</strong> · ${currentTab.toUpperCase()} X-Ray</div>
+    </div>
+  `;
+  document.getElementById('messages').appendChild(msg);
+  scrollToBottom();
+
+  const poll = setInterval(() => {
+    if (currentScanResult) {
+      clearInterval(poll);
+      let scores = '';
+      if (currentScanResult.allScores) {
+        scores = Object.entries(currentScanResult.allScores)
+          .sort((a,b) => b[1]-a[1])
+          .map(([c,p]) => `${c}: ${p}%`).join(', ');
+      }
+      const ctx = `SCAN_RESULT: Top prediction is "${currentScanResult.label}" with ${currentScanResult.confidence}% confidence. Full scores — ${scores}.`;
+
+      const prompt = currentTab === 'spine'
+        ? `I have just uploaded a spine X-ray for assessment. ${ctx} Please begin the spinal assessment.`
+        : `I have just uploaded a chest X-ray for assessment. ${ctx} Please begin the clinical assessment.`;
+
+      callAI(prompt, true);
+    }
+  }, 400);
+  setTimeout(() => clearInterval(poll), 20000);
+}
+
+function hideWelcome() {
+  const w = document.getElementById('welcomeScreen');
+  if (w) w.remove();
+}
+
+function sendSuggestion(chip) {
+  document.getElementById('chatInput').value = chip.textContent;
+  sendMessage();
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text || isLoading) return;
+
+  hideWelcome();
+  input.value = '';
+  input.style.height = 'auto';
+  appendUserMessage(text);
+
+  let fullText = text;
+  if (currentScanResult) {
+    let scores = '';
+    if (currentScanResult.allScores) {
+      scores = Object.entries(currentScanResult.allScores)
+        .sort((a,b) => b[1]-a[1])
+        .map(([c,p]) => `${c}: ${p}%`).join(', ');
+    }
+    fullText += ` [Scan context — ${currentScanResult.type} X-ray. Top: ${currentScanResult.label} ${currentScanResult.confidence}%. All scores: ${scores}]`;
+  }
+
+  callAI(fullText, false);
+}
+
+function appendUserMessage(text) {
+  const msg = document.createElement('div');
+  msg.className = 'message user';
+  msg.innerHTML = `<div class="avatar user-av">👤</div><div class="bubble">${escapeHtml(text)}</div>`;
+  document.getElementById('messages').appendChild(msg);
+  scrollToBottom();
+}
+
+function appendAIMessage(text) {
+  const msg = document.createElement('div');
+  msg.className = 'message ai';
+  msg.innerHTML = `<div class="avatar ai">🫁</div><div class="bubble">${formatMessage(text)}</div>`;
+  document.getElementById('messages').appendChild(msg);
+  scrollToBottom();
+  if (currentTab === 'chest') updateClinicalAssessment(text);
+  return msg;
+}
+
+function updateClinicalAssessment(text) {
+  if (!currentScanResult) return;
+
+  const lower = text.toLowerCase();
+  const conclusive = [
+    'strongly suggests','most likely','consistent with','points to',
+    'you likely have','clinical picture suggests','combination suggests',
+    'overrides','despite the','more likely than','this suggests','indicates that'
+  ];
+
+  if (!conclusive.some(m => lower.includes(m))) return;
+
+  const conditions = [
+    { label: 'COVID-19',               keys: ['covid-19','covid','coronavirus'] },
+    { label: 'Tuberculosis (TB)',       keys: ['tuberculosis',' tb ','tb.','tb,'] },
+    { label: 'Viral Pneumonia',         keys: ['viral pneumonia','pneumonia'] },
+    { label: 'Lung Opacity',            keys: ['lung opacity','opacity'] },
+    { label: 'No Significant Finding',  keys: ['no significant','normal findings','clear lungs'] }
+  ];
+
+  const negatives = ['not covid','not tuberculosis','not pneumonia','rules out','no evidence of','unlikely to be'];
+
+  let found = null;
+  for (const c of conditions) {
+    if (c.keys.some(k => lower.includes(k)) && !negatives.some(n => lower.includes(n))) {
+      found = c; break;
+    }
+  }
+  if (!found) return;
+
+  let reason = '';
+  const sentences = text.replace(/\n/g,' ').split(/(?<=[.!?])\s+/);
+  for (const s of sentences) {
+    if (conclusive.some(m => s.toLowerCase().includes(m))) {
+      reason = s.replace(/\*\*/g,'').trim();
+      if (reason.length > 130) reason = reason.substring(0,127) + '...';
+      break;
+    }
+  }
+
+  document.getElementById('clinicalLabel').textContent = found.label;
+  document.getElementById('clinicalReason').textContent = reason;
+
+  const box = document.getElementById('clinicalBox');
+  box.style.display = 'block';
+  box.classList.remove('clinical-updated');
+  void box.offsetWidth;
+  box.classList.add('clinical-updated');
+}
+
+function showTyping() {
+  const msg = document.createElement('div');
+  msg.id = 'typing-indicator';
+  msg.className = 'message ai';
+  msg.innerHTML = `<div class="avatar ai">🫁</div><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  document.getElementById('messages').appendChild(msg);
+  scrollToBottom();
+}
+
+function removeTyping() {
+  const t = document.getElementById('typing-indicator');
+  if (t) t.remove();
+}
+
+async function callAI(userText, isAuto) {
+  isLoading = true;
+  document.getElementById('sendBtn').disabled = true;
+  showTyping();
+
+  conversationHistory.push({ role: 'user', content: userText });
+
+  const systemPrompt = currentTab === 'spine' ? SPINE_PROMPT : CHEST_PROMPT;
+
+  try {
+    const res = await fetch('http://localhost:5000/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ system: systemPrompt, messages: conversationHistory })
+    });
+
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const reply = data.content?.map(b => b.type === 'text' ? b.text : '').join('') || 'Empty response.';
+    conversationHistory.push({ role: 'assistant', content: reply });
+
+    removeTyping();
+    appendAIMessage(reply);
+
+  } catch (err) {
+    removeTyping();
+    appendAIMessage(`⚠️ Error: ${err.message} — check server.py is running.`);
+    console.error(err);
+  }
+
+  isLoading = false;
+  document.getElementById('sendBtn').disabled = false;
+}
+
+function formatMessage(text) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br/>')
+    .replace(/^/, '<p>').replace(/$/, '</p>');
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function scrollToBottom() {
+  const m = document.getElementById('messages');
+  setTimeout(() => m.scrollTop = m.scrollHeight, 50);
+}
+</script>
+</body>
+</html>
